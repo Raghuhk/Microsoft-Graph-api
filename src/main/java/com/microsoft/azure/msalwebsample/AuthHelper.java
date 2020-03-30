@@ -87,7 +87,7 @@ class AuthHelper {
                     httpRequest,
                     oidcResponse.getAuthorizationCode(),
                     currentUri);
-
+System.out.println(result.accessToken());
             // validate nonce to prevent reply attacks (code maybe substituted to one with broader access)
             validateNonce(CookieHelper.getCookie(httpRequest, CookieHelper.MSAL_WEB_APP_NONCE_COOKIE),
                     getNonceClaimValueFromIdToken(result.idToken()));

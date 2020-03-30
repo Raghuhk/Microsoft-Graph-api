@@ -8,13 +8,24 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.text.ParseException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.microsoft.aad.msal4j.*;
+import com.microsoft.graph.authentication.IAuthenticationProvider;
+import com.microsoft.graph.http.IHttpRequest;
+import com.microsoft.graph.models.extensions.Group;
+import com.microsoft.graph.models.extensions.IGraphServiceClient;
+import com.microsoft.graph.requests.extensions.GraphServiceClient;
+import com.microsoft.graph.requests.extensions.IGroupCollectionPage;
+import com.microsoft.graph.requests.extensions.IGroupCollectionRequestBuilder;
 import com.nimbusds.jwt.JWTParser;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +42,9 @@ public class AuthPageController {
 
     @Autowired
     AuthHelper authHelper;
+
+    @Autowired
+    BasicConfiguration configuration;
 
     @RequestMapping("/msal4jsample")
     public String homepage(){
@@ -101,7 +115,7 @@ public class AuthPageController {
 
             try {
                 mav.addObject("userInfo", getUserInfoFromGraph(result.accessToken()));
-
+printUserInformationFromapi(result.accessToken());
                 return mav;
             } catch (Exception e) {
                 mav = new ModelAndView("error");
@@ -109,6 +123,37 @@ public class AuthPageController {
             }
         }
         return mav;
+    }
+
+    private void printUserInformationFromapi(String accessToken) throws Exception{
+        ConfidentialClientApplication app = ConfidentialClientApplication.builder(configuration.getClientId(), ClientCredentialFactory.createFromSecret(configuration.getSecretKey())).
+                authority(configuration.getAuthority()).
+                build();
+        Set<String> scopes = new HashSet<>();
+        scopes.add("https://graph.microsoft.com/.default");
+
+        ClientCredentialParameters parameters = ClientCredentialParameters.builder(scopes).build();
+        CompletableFuture<IAuthenticationResult> iAuthenticationResultCompletableFuture = app.acquireToken(parameters);
+        IAuthenticationResult authenticationResult = iAuthenticationResultCompletableFuture.get();
+        IGraphServiceClient graphServiceClient = GraphServiceClient.builder().authenticationProvider(new IAuthenticationProvider() {
+            @Override
+            public void authenticateRequest(IHttpRequest iHttpRequest) {
+                iHttpRequest.addHeader("Authorization","Bearer "+authenticationResult.accessToken());
+            }
+        }).buildClient();
+        IGroupCollectionPage iGroupCollectionPage = graphServiceClient.groups().buildRequest().get();
+        List<Group> currentPage = iGroupCollectionPage.getCurrentPage();
+        System.out.println("PRINTING GROUPS:::::::::");
+        String id=null;
+        for(Group group:currentPage){
+            System.out.println(group.id+"::"+group.displayName);
+            if(id==null){
+                id=group.id;
+            }
+        }
+        Group group = graphServiceClient.groups(id).buildRequest().get();
+        System.out.println("FETCHED GROUP::"+group.displayName);
+
     }
 
     private String getUserInfoFromGraph(String accessToken) throws Exception {
